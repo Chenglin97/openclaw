@@ -804,37 +804,45 @@ describe("applyExtraParamsToAgent", () => {
   });
 
   it("normalizes anthropic tool_choice modes for kimi-coding endpoints", () => {
-    const payloads: Record<string, unknown>[] = [];
-    const baseStreamFn: StreamFn = (_model, _context, options) => {
-      const payload: Record<string, unknown> = {
-        tools: [
-          {
-            name: "read",
-            description: "Read file",
-            input_schema: { type: "object", properties: {} },
-          },
-        ],
-        tool_choice: { type: "auto" },
+    const cases = [
+      { input: { type: "auto" }, expected: "auto" },
+      { input: { type: "none" }, expected: "none" },
+      { input: { type: "required" }, expected: "required" },
+    ] as const;
+
+    for (const testCase of cases) {
+      const payloads: Record<string, unknown>[] = [];
+      const baseStreamFn: StreamFn = (_model, _context, options) => {
+        const payload: Record<string, unknown> = {
+          tools: [
+            {
+              name: "read",
+              description: "Read file",
+              input_schema: { type: "object", properties: {} },
+            },
+          ],
+          tool_choice: testCase.input,
+        };
+        options?.onPayload?.(payload);
+        payloads.push(payload);
+        return {} as ReturnType<StreamFn>;
       };
-      options?.onPayload?.(payload);
-      payloads.push(payload);
-      return {} as ReturnType<StreamFn>;
-    };
-    const agent = { streamFn: baseStreamFn };
+      const agent = { streamFn: baseStreamFn };
 
-    applyExtraParamsToAgent(agent, undefined, "kimi-coding", "k2p5", undefined, "low");
+      applyExtraParamsToAgent(agent, undefined, "kimi-coding", "k2p5", undefined, "low");
 
-    const model = {
-      api: "anthropic-messages",
-      provider: "kimi-coding",
-      id: "k2p5",
-      baseUrl: "https://api.kimi.com/coding/",
-    } as Model<"anthropic-messages">;
-    const context: Context = { messages: [] };
-    void agent.streamFn?.(model, context, {});
+      const model = {
+        api: "anthropic-messages",
+        provider: "kimi-coding",
+        id: "k2p5",
+        baseUrl: "https://api.kimi.com/coding/",
+      } as Model<"anthropic-messages">;
+      const context: Context = { messages: [] };
+      void agent.streamFn?.(model, context, {});
 
-    expect(payloads).toHaveLength(1);
-    expect(payloads[0]?.tool_choice).toBe("auto");
+      expect(payloads).toHaveLength(1);
+      expect(payloads[0]?.tool_choice).toBe(testCase.expected);
+    }
   });
 
   it("does not rewrite anthropic tool schema for non-kimi endpoints", () => {
