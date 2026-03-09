@@ -8,6 +8,7 @@ import {
   createMatrixReactionEvent,
   createMatrixTextMessageEvent,
 } from "./handler.test-helpers.js";
+import { createMatrixRoomMessageHandler } from "./handler.js";
 import type { MatrixRawEvent } from "./types.js";
 
 const sendMessageMatrixMock = vi.hoisted(() =>
@@ -374,17 +375,15 @@ describe("matrix monitor handler pairing account scope", () => {
       getMemberDisplayName: async () => "sender",
     });
 
-    await handler("!room:example.org", {
-      type: EventType.RoomMessage,
-      sender: "@user:example.org",
-      event_id: "$message1",
-      origin_server_ts: Date.now(),
-      content: {
-        msgtype: "m.text",
+    await handler(
+      "!room:example.org",
+      createMatrixTextMessageEvent({
+        eventId: "$message1",
+        sender: "@user:example.org",
         body: "hello there",
-        "m.mentions": { room: true },
-      },
-    } as MatrixRawEvent);
+        mentions: { room: true },
+      }) as MatrixRawEvent,
+    );
 
     expect(enqueueSystemEvent).not.toHaveBeenCalled();
   });
