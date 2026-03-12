@@ -122,6 +122,31 @@ describe("registerMatrixAutoJoin", () => {
     expect(joinRoom).toHaveBeenCalledWith("!room:example.org");
   });
 
+  it("retries alias resolution after an unresolved lookup", async () => {
+    const { client, getInviteHandler, joinRoom, resolveRoom } = createClientStub();
+    resolveRoom.mockResolvedValueOnce(null).mockResolvedValueOnce("!room:example.org");
+
+    registerMatrixAutoJoin({
+      client,
+      accountConfig: {
+        autoJoin: "allowlist",
+        autoJoinAllowlist: ["#allowed:example.org"],
+      },
+      runtime: {
+        log: vi.fn(),
+        error: vi.fn(),
+      } as unknown as import("openclaw/plugin-sdk/matrix").RuntimeEnv,
+    });
+
+    const inviteHandler = getInviteHandler();
+    expect(inviteHandler).toBeTruthy();
+    await inviteHandler!("!room:example.org", {});
+    await inviteHandler!("!room:example.org", {});
+
+    expect(resolveRoom).toHaveBeenCalledTimes(2);
+    expect(joinRoom).toHaveBeenCalledWith("!room:example.org");
+  });
+
   it("does not trust room-provided alias claims for allowlist joins", async () => {
     const { client, getInviteHandler, joinRoom, resolveRoom } = createClientStub();
     resolveRoom.mockResolvedValue("!different-room:example.org");

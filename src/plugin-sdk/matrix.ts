@@ -115,6 +115,10 @@ export {
   sanitizeMatrixPathSegment,
 } from "../infra/matrix-storage-paths.js";
 export {
+  requiresExplicitMatrixDefaultAccount,
+  resolveMatrixDefaultOrOnlyAccountId,
+} from "../infra/matrix-account-selection.js";
+export {
   hasActionableMatrixMigration,
   hasPendingMatrixMigration,
   maybeCreateMatrixMigrationSnapshot,

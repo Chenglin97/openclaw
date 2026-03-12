@@ -23,7 +23,7 @@ export function registerMatrixAutoJoin(params: {
   const autoJoinAllowlist = new Set(rawAllowlist);
   const allowedRoomIds = new Set(rawAllowlist.filter((entry) => entry.startsWith("!")));
   const allowedAliases = rawAllowlist.filter((entry) => entry.startsWith("#"));
-  const resolvedAliasRoomIds = new Map<string, string | null>();
+  const resolvedAliasRoomIds = new Map<string, string>();
 
   if (autoJoin === "off") {
     return;
@@ -40,7 +40,9 @@ export function registerMatrixAutoJoin(params: {
       return resolvedAliasRoomIds.get(alias) ?? null;
     }
     const resolved = await params.client.resolveRoom(alias);
-    resolvedAliasRoomIds.set(alias, resolved);
+    if (resolved) {
+      resolvedAliasRoomIds.set(alias, resolved);
+    }
     return resolved;
   };
 

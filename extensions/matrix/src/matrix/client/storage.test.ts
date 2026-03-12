@@ -2,38 +2,75 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { resolveMatrixAccountStorageRoot } from "openclaw/plugin-sdk/matrix";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { setMatrixRuntime } from "../../runtime.js";
-import { maybeMigrateLegacyStorage, resolveMatrixStoragePaths } from "./storage.js";
 
-const maybeCreateMatrixMigrationSnapshotMock = vi.hoisted(() =>
-  vi.fn(async (_params: unknown) => undefined),
+const createBackupArchiveMock = vi.hoisted(() =>
+  vi.fn(async (_params: unknown) => ({
+    createdAt: "2026-03-17T00:00:00.000Z",
+    archiveRoot: "2026-03-17-openclaw-backup",
+    archivePath: "/tmp/matrix-migration-snapshot.tar.gz",
+    dryRun: false,
+    includeWorkspace: false,
+    onlyConfig: false,
+    verified: false,
+    assets: [],
+    skipped: [],
+  })),
 );
 
-vi.mock("openclaw/plugin-sdk/matrix", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/matrix")>();
+vi.mock("../../../../../src/infra/backup-create.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../../src/infra/backup-create.js")>();
   return {
     ...actual,
-    maybeCreateMatrixMigrationSnapshot: (params: unknown) =>
-      maybeCreateMatrixMigrationSnapshotMock(params),
+    createBackupArchive: (params: unknown) => createBackupArchiveMock(params),
   };
 });
+
+let maybeMigrateLegacyStorage: typeof import("./storage.js").maybeMigrateLegacyStorage;
+let resolveMatrixStoragePaths: typeof import("./storage.js").resolveMatrixStoragePaths;
 
 describe("matrix client storage paths", () => {
   const tempDirs: string[] = [];
 
+  beforeAll(async () => {
+    ({ maybeMigrateLegacyStorage, resolveMatrixStoragePaths } = await import("./storage.js"));
+  });
+
   afterEach(() => {
-    maybeCreateMatrixMigrationSnapshotMock.mockReset();
+    createBackupArchiveMock.mockReset();
+    createBackupArchiveMock.mockImplementation(async (_params: unknown) => ({
+      createdAt: "2026-03-17T00:00:00.000Z",
+      archiveRoot: "2026-03-17-openclaw-backup",
+      archivePath: "/tmp/matrix-migration-snapshot.tar.gz",
+      dryRun: false,
+      includeWorkspace: false,
+      onlyConfig: false,
+      verified: false,
+      assets: [],
+      skipped: [],
+    }));
     vi.restoreAllMocks();
     for (const dir of tempDirs.splice(0)) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  function setupStateDir(): string {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-matrix-storage-"));
-    tempDirs.push(dir);
+  function setupStateDir(
+    cfg: Record<string, unknown> = {
+      channels: {
+        matrix: {},
+      },
+    },
+  ): string {
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-matrix-storage-"));
+    const stateDir = path.join(homeDir, ".openclaw");
+    fs.mkdirSync(stateDir, { recursive: true });
+    tempDirs.push(homeDir);
     setMatrixRuntime({
+      config: {
+        loadConfig: () => cfg,
+      },
       logging: {
         getChildLogger: () => ({
           info: () => {},
@@ -42,10 +79,19 @@ describe("matrix client storage paths", () => {
         }),
       },
       state: {
-        resolveStateDir: () => dir,
+        resolveStateDir: () => stateDir,
       },
     } as never);
-    return dir;
+    return stateDir;
+  }
+
+  function createMigrationEnv(stateDir: string): NodeJS.ProcessEnv {
+    return {
+      HOME: path.dirname(stateDir),
+      OPENCLAW_HOME: path.dirname(stateDir),
+      OPENCLAW_STATE_DIR: stateDir,
+      OPENCLAW_TEST_FAST: "1",
+    } as NodeJS.ProcessEnv;
   }
 
   it("uses the simplified matrix runtime root for account-scoped storage", () => {
@@ -89,14 +135,15 @@ describe("matrix client storage paths", () => {
     const legacyRoot = path.join(stateDir, "matrix");
     fs.mkdirSync(path.join(legacyRoot, "crypto"), { recursive: true });
     fs.writeFileSync(path.join(legacyRoot, "bot-storage.json"), '{"legacy":true}');
+    const env = createMigrationEnv(stateDir);
 
     await maybeMigrateLegacyStorage({
       storagePaths,
-      env: {},
+      env,
     });
 
-    expect(maybeCreateMatrixMigrationSnapshotMock).toHaveBeenCalledWith(
-      expect.objectContaining({ trigger: "matrix-client-fallback" }),
+    expect(createBackupArchiveMock).toHaveBeenCalledWith(
+      expect.objectContaining({ includeWorkspace: false }),
     );
     expect(fs.existsSync(path.join(legacyRoot, "bot-storage.json"))).toBe(false);
     expect(fs.readFileSync(storagePaths.storagePath, "utf8")).toBe('{"legacy":true}');
@@ -114,12 +161,13 @@ describe("matrix client storage paths", () => {
     const legacyRoot = path.join(stateDir, "matrix");
     fs.mkdirSync(path.join(legacyRoot, "crypto"), { recursive: true });
     fs.writeFileSync(path.join(legacyRoot, "bot-storage.json"), '{"legacy":true}');
-    maybeCreateMatrixMigrationSnapshotMock.mockRejectedValueOnce(new Error("snapshot failed"));
+    const env = createMigrationEnv(stateDir);
+    createBackupArchiveMock.mockRejectedValueOnce(new Error("snapshot failed"));
 
     await expect(
       maybeMigrateLegacyStorage({
         storagePaths,
-        env: {},
+        env,
       }),
     ).rejects.toThrow("snapshot failed");
     expect(fs.existsSync(path.join(legacyRoot, "bot-storage.json"))).toBe(true);
@@ -137,6 +185,7 @@ describe("matrix client storage paths", () => {
     const legacyRoot = path.join(stateDir, "matrix");
     fs.mkdirSync(path.join(legacyRoot, "crypto"), { recursive: true });
     fs.writeFileSync(path.join(legacyRoot, "bot-storage.json"), '{"legacy":true}');
+    const env = createMigrationEnv(stateDir);
     const realRenameSync = fs.renameSync.bind(fs);
     const renameSync = vi.spyOn(fs, "renameSync");
     renameSync.mockImplementation((sourcePath, targetPath) => {
@@ -149,12 +198,82 @@ describe("matrix client storage paths", () => {
     await expect(
       maybeMigrateLegacyStorage({
         storagePaths,
-        env: {},
+        env,
       }),
     ).rejects.toThrow("disk full");
     expect(fs.existsSync(path.join(legacyRoot, "bot-storage.json"))).toBe(true);
     expect(fs.existsSync(storagePaths.storagePath)).toBe(false);
     expect(fs.existsSync(path.join(legacyRoot, "crypto"))).toBe(true);
+  });
+
+  it("refuses fallback migration when multiple Matrix accounts need explicit selection", async () => {
+    const stateDir = setupStateDir({
+      channels: {
+        matrix: {
+          accounts: {
+            ops: {},
+            work: {},
+          },
+        },
+      },
+    });
+    const storagePaths = resolveMatrixStoragePaths({
+      homeserver: "https://matrix.example.org",
+      userId: "@bot:example.org",
+      accessToken: "secret-token",
+      accountId: "ops",
+      env: {},
+    });
+    const legacyRoot = path.join(stateDir, "matrix");
+    fs.mkdirSync(path.join(legacyRoot, "crypto"), { recursive: true });
+    fs.writeFileSync(path.join(legacyRoot, "bot-storage.json"), '{"legacy":true}');
+    const env = createMigrationEnv(stateDir);
+
+    await expect(
+      maybeMigrateLegacyStorage({
+        storagePaths,
+        env,
+      }),
+    ).rejects.toThrow(/defaultAccount is not set/i);
+    expect(createBackupArchiveMock).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(legacyRoot, "bot-storage.json"))).toBe(true);
+  });
+
+  it("refuses fallback migration for a non-selected Matrix account", async () => {
+    const stateDir = setupStateDir({
+      channels: {
+        matrix: {
+          defaultAccount: "ops",
+          homeserver: "https://matrix.default.example.org",
+          accessToken: "default-token",
+          accounts: {
+            ops: {
+              homeserver: "https://matrix.ops.example.org",
+              accessToken: "ops-token",
+            },
+          },
+        },
+      },
+    });
+    const storagePaths = resolveMatrixStoragePaths({
+      homeserver: "https://matrix.default.example.org",
+      userId: "@default:example.org",
+      accessToken: "default-token",
+      env: {},
+    });
+    const legacyRoot = path.join(stateDir, "matrix");
+    fs.mkdirSync(path.join(legacyRoot, "crypto"), { recursive: true });
+    fs.writeFileSync(path.join(legacyRoot, "bot-storage.json"), '{"legacy":true}');
+    const env = createMigrationEnv(stateDir);
+
+    await expect(
+      maybeMigrateLegacyStorage({
+        storagePaths,
+        env,
+      }),
+    ).rejects.toThrow(/targets account "ops"/i);
+    expect(createBackupArchiveMock).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(legacyRoot, "bot-storage.json"))).toBe(true);
   });
 
   it("reuses an existing token-hash storage root after the access token changes", () => {

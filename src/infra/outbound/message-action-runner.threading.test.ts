@@ -304,7 +304,7 @@ describe("runMessageAction threading auto-injection", () => {
     expect(call?.ctx?.params?.threadId).toBe("$explicit");
   });
 
-  it("injects threadId for matching Matrix dm user target", async () => {
+  it("skips threadId for Matrix dm user targets until the resolved room matches", async () => {
     mockHandledSendAction();
 
     const call = await runThreadingAction({
@@ -317,8 +317,8 @@ describe("runMessageAction threading auto-injection", () => {
       toolContext: defaultMatrixDmToolContext,
     });
 
-    expect(call?.threadId).toBe("$thread");
-    expect(call?.ctx?.params?.threadId).toBe("$thread");
+    expect(call?.threadId).toBeUndefined();
+    expect(call?.ctx?.params?.threadId).toBeUndefined();
   });
 
   it("skips threadId for different Matrix dm user target", async () => {

@@ -3,7 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import {
   maybeCreateMatrixMigrationSnapshot,
+  normalizeAccountId,
+  requiresExplicitMatrixDefaultAccount,
   resolveMatrixAccountStorageRoot,
+  resolveMatrixDefaultOrOnlyAccountId,
   resolveMatrixLegacyFlatStoragePaths,
 } from "openclaw/plugin-sdk/matrix";
 import { getMatrixRuntime } from "../../runtime.js";
@@ -29,6 +32,26 @@ function resolveLegacyStoragePaths(env: NodeJS.ProcessEnv = process.env): {
   const stateDir = getMatrixRuntime().state.resolveStateDir(env, os.homedir);
   const legacy = resolveMatrixLegacyFlatStoragePaths(stateDir);
   return { storagePath: legacy.storagePath, cryptoPath: legacy.cryptoPath };
+}
+
+function assertLegacyMigrationAccountSelection(params: { accountKey: string }): void {
+  const cfg = getMatrixRuntime().config.loadConfig();
+  if (!cfg.channels?.matrix || typeof cfg.channels.matrix !== "object") {
+    return;
+  }
+  if (requiresExplicitMatrixDefaultAccount(cfg)) {
+    throw new Error(
+      "Legacy Matrix client storage cannot be migrated automatically because multiple Matrix accounts are configured and channels.matrix.defaultAccount is not set.",
+    );
+  }
+
+  const selectedAccountId = normalizeAccountId(resolveMatrixDefaultOrOnlyAccountId(cfg));
+  const currentAccountId = normalizeAccountId(params.accountKey);
+  if (selectedAccountId !== currentAccountId) {
+    throw new Error(
+      `Legacy Matrix client storage targets account "${selectedAccountId}", but the current client is starting account "${currentAccountId}". Start the selected account first so flat legacy storage is not migrated into the wrong account directory.`,
+    );
+  }
 }
 
 function scoreStorageRoot(rootDir: string): number {
@@ -174,6 +197,10 @@ export async function maybeMigrateLegacyStorage(params: {
   if (!hasLegacyStorage && !hasLegacyCrypto) {
     return;
   }
+
+  assertLegacyMigrationAccountSelection({
+    accountKey: params.storagePaths.accountKey,
+  });
 
   const logger = getMatrixRuntime().logging.getChildLogger({ module: "matrix-storage" });
   await maybeCreateMatrixMigrationSnapshot({

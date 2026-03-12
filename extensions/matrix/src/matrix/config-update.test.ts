@@ -121,4 +121,31 @@ describe("updateMatrixAccountConfig", () => {
     });
     expect(updated.channels?.["matrix"]?.accounts?.ops?.rooms).toBeUndefined();
   });
+
+  it("reuses and canonicalizes non-normalized account entries when updating", () => {
+    const cfg = {
+      channels: {
+        matrix: {
+          accounts: {
+            Ops: {
+              homeserver: "https://matrix.ops.example.org",
+              accessToken: "ops-token",
+            },
+          },
+        },
+      },
+    } as CoreConfig;
+
+    const updated = updateMatrixAccountConfig(cfg, "ops", {
+      deviceName: "Ops Bot",
+    });
+
+    expect(updated.channels?.["matrix"]?.accounts?.Ops).toBeUndefined();
+    expect(updated.channels?.["matrix"]?.accounts?.ops).toMatchObject({
+      homeserver: "https://matrix.ops.example.org",
+      accessToken: "ops-token",
+      deviceName: "Ops Bot",
+      enabled: true,
+    });
+  });
 });

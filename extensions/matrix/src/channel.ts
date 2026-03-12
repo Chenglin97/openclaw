@@ -86,13 +86,11 @@ function resolveMatrixAutoThreadId(params: {
     return undefined;
   }
   if (target.kind === "user") {
-    const currentDirectUserId = params.toolContext?.currentDirectUserId?.trim();
-    if (!currentDirectUserId) {
-      return undefined;
-    }
-    return target.id.toLowerCase() === currentDirectUserId.toLowerCase()
-      ? currentThreadId
-      : undefined;
+    // Matrix user targets resolve to a room later in the outbound pipeline.
+    // Do not copy the current room thread onto a user target until that room
+    // has been explicitly resolved; otherwise DM recreation or stale m.direct
+    // ordering can send a thread ID to the wrong room.
+    return undefined;
   }
   const currentChannel = params.toolContext?.currentChannelId
     ? resolveMatrixTargetIdentity(params.toolContext.currentChannelId)

@@ -10,7 +10,6 @@ import { readBooleanParam as readBooleanParamShared } from "../../plugin-sdk/boo
 import { loadWebMedia } from "../../plugin-sdk/web-media.js";
 
 export const readBooleanParam = readBooleanParamShared;
-
 function resolveAttachmentMaxBytes(params: {
   cfg: OpenClawConfig;
   channel: ChannelId;

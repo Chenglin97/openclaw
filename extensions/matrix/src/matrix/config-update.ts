@@ -1,6 +1,7 @@
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
 import { normalizeAccountId } from "openclaw/plugin-sdk/matrix";
 import type { CoreConfig, MatrixConfig } from "../types.js";
+import { findMatrixAccountConfig } from "./account-config.js";
 
 export type MatrixAccountPatch = {
   name?: string | null;
@@ -113,7 +114,7 @@ export function updateMatrixAccountConfig(
 ): CoreConfig {
   const matrix = cfg.channels?.matrix ?? {};
   const normalizedAccountId = normalizeAccountId(accountId);
-  const existingAccount = (matrix.accounts?.[normalizedAccountId] ??
+  const existingAccount = (findMatrixAccountConfig(cfg, normalizedAccountId) ??
     (normalizedAccountId === DEFAULT_ACCOUNT_ID ? matrix : {})) as MatrixConfig;
   const nextAccount: Record<string, unknown> = { ...existingAccount };
 
@@ -191,6 +192,14 @@ export function updateMatrixAccountConfig(
     }
   }
 
+  const nextAccounts = Object.fromEntries(
+    Object.entries(matrix.accounts ?? {}).filter(
+      ([rawAccountId]) =>
+        rawAccountId === normalizedAccountId ||
+        normalizeAccountId(rawAccountId) !== normalizedAccountId,
+    ),
+  );
+
   if (shouldStoreMatrixAccountAtTopLevel(cfg, normalizedAccountId)) {
     const { accounts: _ignoredAccounts, defaultAccount, ...baseMatrix } = matrix;
     return {
@@ -215,7 +224,7 @@ export function updateMatrixAccountConfig(
         ...matrix,
         enabled: true,
         accounts: {
-          ...matrix.accounts,
+          ...nextAccounts,
           [normalizedAccountId]: nextAccount as MatrixConfig,
         },
       },
