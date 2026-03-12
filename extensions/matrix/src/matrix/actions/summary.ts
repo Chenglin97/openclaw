@@ -1,3 +1,4 @@
+import { resolveMatrixMessageAttachment, resolveMatrixMessageBody } from "../media-text.js";
 import { fetchMatrixPollMessageSummary } from "../poll-summary.js";
 import type { MatrixClient } from "../sdk.js";
 import {
@@ -31,8 +32,17 @@ export function summarizeMatrixRawEvent(event: MatrixRawEvent): MatrixMessageSum
   return {
     eventId: event.event_id,
     sender: event.sender,
-    body: content.body,
+    body: resolveMatrixMessageBody({
+      body: content.body,
+      filename: content.filename,
+      msgtype: content.msgtype,
+    }),
     msgtype: content.msgtype,
+    attachment: resolveMatrixMessageAttachment({
+      body: content.body,
+      filename: content.filename,
+      msgtype: content.msgtype,
+    }),
     timestamp: event.origin_server_ts,
     relatesTo,
   };

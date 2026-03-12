@@ -1,3 +1,8 @@
+import {
+  formatMatrixMessageText,
+  resolveMatrixMessageAttachment,
+  resolveMatrixMessageBody,
+} from "../media-text.js";
 import type { MatrixClient } from "../sdk.js";
 import type { MatrixRawEvent } from "./types.js";
 
@@ -24,8 +29,19 @@ function truncateThreadStarterBody(value: string): string {
 }
 
 export function summarizeMatrixThreadStarterEvent(event: MatrixRawEvent): string | undefined {
-  const content = event.content as { body?: unknown; msgtype?: unknown };
-  const body = trimMaybeString(content.body);
+  const content = event.content as { body?: unknown; filename?: unknown; msgtype?: unknown };
+  const body = formatMatrixMessageText({
+    body: resolveMatrixMessageBody({
+      body: trimMaybeString(content.body),
+      filename: trimMaybeString(content.filename),
+      msgtype: trimMaybeString(content.msgtype),
+    }),
+    attachment: resolveMatrixMessageAttachment({
+      body: trimMaybeString(content.body),
+      filename: trimMaybeString(content.filename),
+      msgtype: trimMaybeString(content.msgtype),
+    }),
+  });
   if (body) {
     return truncateThreadStarterBody(body);
   }

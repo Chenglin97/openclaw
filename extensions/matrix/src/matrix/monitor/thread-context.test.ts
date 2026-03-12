@@ -21,6 +21,21 @@ describe("matrix thread context", () => {
     ).toBe("Thread starter body");
   });
 
+  it("marks media-only thread starter events instead of returning bare filenames", () => {
+    expect(
+      summarizeMatrixThreadStarterEvent({
+        event_id: "$root",
+        sender: "@alice:example.org",
+        type: "m.room.message",
+        origin_server_ts: Date.now(),
+        content: {
+          msgtype: "m.image",
+          body: "photo.jpg",
+        },
+      } as MatrixRawEvent),
+    ).toBe("[matrix image attachment]");
+  });
+
   it("resolves and caches thread starter context", async () => {
     const getEvent = vi.fn(async () => ({
       event_id: "$root",

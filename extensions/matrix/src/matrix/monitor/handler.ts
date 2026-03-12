@@ -13,6 +13,7 @@ import {
   type RuntimeLogger,
 } from "openclaw/plugin-sdk/matrix";
 import type { CoreConfig, MatrixRoomConfig, ReplyToMode } from "../../types.js";
+import { formatMatrixMediaUnavailableText } from "../media-text.js";
 import { fetchMatrixPollSnapshot } from "../poll-summary.js";
 import {
   formatPollAsText,
@@ -100,6 +101,27 @@ function resolveMatrixMentionPrecheckText(params: {
     }
   }
   return "";
+}
+
+function resolveMatrixInboundBodyText(params: {
+  rawBody: string;
+  filename?: string;
+  mediaPlaceholder?: string;
+  msgtype?: string;
+  hadMediaUrl: boolean;
+  mediaDownloadFailed: boolean;
+}): string {
+  if (params.mediaPlaceholder) {
+    return params.rawBody || params.mediaPlaceholder;
+  }
+  if (!params.mediaDownloadFailed || !params.hadMediaUrl) {
+    return params.rawBody;
+  }
+  return formatMatrixMediaUnavailableText({
+    body: params.rawBody,
+    filename: params.filename,
+    msgtype: params.msgtype,
+  });
 }
 
 export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParams) {
@@ -519,6 +541,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         contentType?: string;
         placeholder: string;
       } | null = null;
+      let mediaDownloadFailed = false;
       const finalContentUrl =
         "url" in content && typeof content.url === "string" ? content.url : undefined;
       const finalContentFile =
@@ -543,13 +566,31 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
             file: finalContentFile,
           });
         } catch (err) {
-          logVerboseMessage(`matrix: media download failed: ${String(err)}`);
+          mediaDownloadFailed = true;
+          const errorText = err instanceof Error ? err.message : String(err);
+          logVerboseMessage(
+            `matrix: media download failed room=${roomId} id=${event.event_id ?? "unknown"} type=${content.msgtype} error=${errorText}`,
+          );
+          logger.warn("matrix media download failed", {
+            roomId,
+            eventId: event.event_id,
+            msgtype: content.msgtype,
+            encrypted: Boolean(finalContentFile),
+            error: errorText,
+          });
         }
       }
 
       const rawBody =
         locationPayload?.text ?? (typeof content.body === "string" ? content.body.trim() : "");
-      const bodyText = rawBody || media?.placeholder || "";
+      const bodyText = resolveMatrixInboundBodyText({
+        rawBody,
+        filename: typeof content.filename === "string" ? content.filename : undefined,
+        mediaPlaceholder: media?.placeholder,
+        msgtype: content.msgtype,
+        hadMediaUrl: Boolean(finalMediaUrl),
+        mediaDownloadFailed,
+      });
       if (!bodyText) {
         return;
       }

@@ -59,12 +59,21 @@ export type MatrixMessageSummary = {
   sender?: string;
   body?: string;
   msgtype?: string;
+  attachment?: MatrixMessageAttachmentSummary;
   timestamp?: number;
   relatesTo?: {
     relType?: string;
     eventId?: string;
     key?: string;
   };
+};
+
+export type MatrixMessageAttachmentKind = "audio" | "file" | "image" | "sticker" | "video";
+
+export type MatrixMessageAttachmentSummary = {
+  kind: MatrixMessageAttachmentKind;
+  caption?: string;
+  filename?: string;
 };
 
 export type MatrixActionClient = {
