@@ -463,6 +463,73 @@ describe("matrix CLI verification commands", () => {
     expect(bootstrapMatrixVerificationMock).not.toHaveBeenCalled();
   });
 
+  it("warns instead of failing when device-health probing fails after saving the account", async () => {
+    listMatrixOwnDevicesMock.mockRejectedValue(new Error("homeserver unavailable"));
+    const program = buildProgram();
+
+    await program.parseAsync(
+      [
+        "matrix",
+        "account",
+        "add",
+        "--account",
+        "ops",
+        "--homeserver",
+        "https://matrix.example.org",
+        "--user-id",
+        "@ops:example.org",
+        "--password",
+        "secret",
+      ],
+      { from: "user" },
+    );
+
+    expect(matrixRuntimeWriteConfigFileMock).toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+    expect(console.log).toHaveBeenCalledWith("Saved matrix account: ops");
+    expect(console.error).toHaveBeenCalledWith(
+      "Matrix device health warning: homeserver unavailable",
+    );
+  });
+
+  it("returns device-health warnings in JSON mode without failing the account add command", async () => {
+    listMatrixOwnDevicesMock.mockRejectedValue(new Error("homeserver unavailable"));
+    const program = buildProgram();
+
+    await program.parseAsync(
+      [
+        "matrix",
+        "account",
+        "add",
+        "--account",
+        "ops",
+        "--homeserver",
+        "https://matrix.example.org",
+        "--user-id",
+        "@ops:example.org",
+        "--password",
+        "secret",
+        "--json",
+      ],
+      { from: "user" },
+    );
+
+    expect(matrixRuntimeWriteConfigFileMock).toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+    const jsonOutput = console.log.mock.calls.at(-1)?.[0];
+    expect(typeof jsonOutput).toBe("string");
+    expect(JSON.parse(String(jsonOutput))).toEqual(
+      expect.objectContaining({
+        accountId: "ops",
+        deviceHealth: expect.objectContaining({
+          currentDeviceId: null,
+          staleOpenClawDeviceIds: [],
+          error: "homeserver unavailable",
+        }),
+      }),
+    );
+  });
+
   it("uses --name as fallback account id and prints account-scoped config path", async () => {
     matrixRuntimeLoadConfigMock.mockReturnValue({ channels: {} });
     const program = buildProgram();

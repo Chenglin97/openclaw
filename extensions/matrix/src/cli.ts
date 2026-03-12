@@ -131,6 +131,7 @@ type MatrixCliAccountAddResult = {
   deviceHealth: {
     currentDeviceId: string | null;
     staleOpenClawDeviceIds: string[];
+    error?: string;
   };
   verificationBootstrap: {
     attempted: boolean;
@@ -277,20 +278,31 @@ async function addMatrixAccount(params: {
     }
   }
 
-  const addedDevices = await listMatrixOwnDevices({ accountId });
-  const currentDeviceId = addedDevices.find((device) => device.current)?.deviceId ?? null;
-  const staleOpenClawDeviceIds = addedDevices
-    .filter((device) => !device.current && isOpenClawManagedMatrixDevice(device.displayName))
-    .map((device) => device.deviceId);
+  let deviceHealth: MatrixCliAccountAddResult["deviceHealth"] = {
+    currentDeviceId: null,
+    staleOpenClawDeviceIds: [],
+  };
+  try {
+    const addedDevices = await listMatrixOwnDevices({ accountId });
+    deviceHealth = {
+      currentDeviceId: addedDevices.find((device) => device.current)?.deviceId ?? null,
+      staleOpenClawDeviceIds: addedDevices
+        .filter((device) => !device.current && isOpenClawManagedMatrixDevice(device.displayName))
+        .map((device) => device.deviceId),
+    };
+  } catch (err) {
+    deviceHealth = {
+      currentDeviceId: null,
+      staleOpenClawDeviceIds: [],
+      error: toErrorMessage(err),
+    };
+  }
 
   return {
     accountId,
     configPath: resolveMatrixConfigPath(updated, accountId),
     useEnv: input.useEnv === true,
-    deviceHealth: {
-      currentDeviceId,
-      staleOpenClawDeviceIds,
-    },
+    deviceHealth,
     verificationBootstrap,
     profile,
   };
@@ -709,7 +721,9 @@ export function registerMatrixCli(params: { program: Command }): void {
                 );
               }
             }
-            if (result.deviceHealth.staleOpenClawDeviceIds.length > 0) {
+            if (result.deviceHealth.error) {
+              console.error(`Matrix device health warning: ${result.deviceHealth.error}`);
+            } else if (result.deviceHealth.staleOpenClawDeviceIds.length > 0) {
               console.log(
                 `Matrix device hygiene warning: stale OpenClaw devices detected (${result.deviceHealth.staleOpenClawDeviceIds.join(", ")}). Run 'openclaw matrix devices prune-stale --account ${result.accountId}'.`,
               );
