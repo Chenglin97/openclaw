@@ -26,6 +26,7 @@ function createHarness(params?: {
   verifications?: Array<{
     id: string;
     transactionId?: string;
+    roomId?: string;
     otherUserId: string;
     updatedAt?: string;
     completed?: boolean;
@@ -442,6 +443,73 @@ describe("registerMatrixMonitorEvents verification routing", () => {
       origin_server_ts: Date.now(),
       content: {
         "m.relates_to": { event_id: "$req-active" },
+      },
+    });
+
+    await vi.waitFor(() => {
+      const bodies = (sendMessage.mock.calls as unknown[][]).map((call) =>
+        String((call[1] as { body?: string } | undefined)?.body ?? ""),
+      );
+      expect(bodies.some((body) => body.includes("SAS decimal: 6158 1986 3513"))).toBe(true);
+    });
+    const bodies = (sendMessage.mock.calls as unknown[][]).map((call) =>
+      String((call[1] as { body?: string } | undefined)?.body ?? ""),
+    );
+    expect(bodies.some((body) => body.includes("SAS decimal: 1111 2222 3333"))).toBe(false);
+  });
+
+  it("prefers the active verification for the current DM when multiple active summaries exist", async () => {
+    const { sendMessage, roomEventListener } = createHarness({
+      joinedMembersByRoom: {
+        "!dm-current:example.org": ["@alice:example.org", "@bot:example.org"],
+      },
+      verifications: [
+        {
+          id: "verification-other-room",
+          roomId: "!dm-other:example.org",
+          transactionId: "$different-flow-other",
+          otherUserId: "@alice:example.org",
+          updatedAt: new Date("2026-02-25T21:44:54.000Z").toISOString(),
+          phaseName: "started",
+          phase: 3,
+          pending: true,
+          sas: {
+            decimal: [1111, 2222, 3333],
+            emoji: [
+              ["🚀", "Rocket"],
+              ["🦋", "Butterfly"],
+              ["📕", "Book"],
+            ],
+          },
+        },
+        {
+          id: "verification-current-room",
+          roomId: "!dm-current:example.org",
+          transactionId: "$different-flow-current",
+          otherUserId: "@alice:example.org",
+          updatedAt: new Date("2026-02-25T21:43:54.000Z").toISOString(),
+          phaseName: "started",
+          phase: 3,
+          pending: true,
+          sas: {
+            decimal: [6158, 1986, 3513],
+            emoji: [
+              ["🎁", "Gift"],
+              ["🌍", "Globe"],
+              ["🐴", "Horse"],
+            ],
+          },
+        },
+      ],
+    });
+
+    roomEventListener("!dm-current:example.org", {
+      event_id: "$start-room-scoped",
+      sender: "@alice:example.org",
+      type: "m.key.verification.start",
+      origin_server_ts: Date.now(),
+      content: {
+        "m.relates_to": { event_id: "$req-room-scoped" },
       },
     });
 

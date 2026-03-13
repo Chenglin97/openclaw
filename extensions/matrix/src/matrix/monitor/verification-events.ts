@@ -16,6 +16,7 @@ type MatrixVerificationStage = "request" | "ready" | "start" | "cancel" | "done"
 type MatrixVerificationSummaryLike = {
   id: string;
   transactionId?: string;
+  roomId?: string;
   otherUserId: string;
   updatedAt?: string;
   completed?: boolean;
@@ -223,7 +224,14 @@ async function resolveVerificationSummaryForSignal(
   const activeByUser = list
     .filter((entry) => entry.otherUserId === params.senderId && isActiveVerificationSummary(entry))
     .sort((a, b) => resolveSummaryRecency(b) - resolveSummaryRecency(a));
-  return activeByUser.length === 1 ? (activeByUser[0] ?? null) : null;
+  const activeInRoom = activeByUser.filter((entry) => {
+    const roomId = trimMaybeString(entry.roomId);
+    return roomId === params.roomId;
+  });
+  if (activeInRoom.length > 0) {
+    return activeInRoom[0] ?? null;
+  }
+  return activeByUser[0] ?? null;
 }
 
 async function resolveVerificationSasNoticeForSignal(
