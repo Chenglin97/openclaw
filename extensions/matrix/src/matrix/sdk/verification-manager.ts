@@ -313,6 +313,9 @@ export class MatrixVerificationManager {
     if (this.readRequestValue(session.request, () => session.request.initiatedByMe, true)) {
       return;
     }
+    if (!this.readRequestValue(session.request, () => session.request.isSelfVerification, false)) {
+      return;
+    }
     const phase = this.readRequestValue(
       session.request,
       () => session.request.phase,

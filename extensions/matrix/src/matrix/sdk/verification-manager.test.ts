@@ -256,7 +256,7 @@ describe("MatrixVerificationManager", () => {
     });
   });
 
-  it("auto-starts inbound SAS when request becomes ready without a verifier", async () => {
+  it("does not auto-start non-self inbound SAS when request becomes ready without a verifier", async () => {
     const verify = vi.fn(async () => {});
     const verifier = new MockVerifier(
       {
@@ -276,8 +276,55 @@ describe("MatrixVerificationManager", () => {
       verify,
     );
     const request = new MockVerificationRequest({
-      transactionId: "txn-auto-start-sas",
+      transactionId: "txn-no-auto-start-dm-sas",
       initiatedByMe: false,
+      isSelfVerification: false,
+      verifier: undefined,
+    });
+    request.startVerification = vi.fn(async (_method: string) => {
+      request.phase = VerificationPhase.Started;
+      request.verifier = verifier;
+      return verifier;
+    });
+    const manager = new MatrixVerificationManager();
+    const tracked = manager.trackVerificationRequest(request);
+
+    request.phase = VerificationPhase.Ready;
+    request.emit(VerificationRequestEvent.Change);
+
+    await vi.waitFor(() => {
+      expect(manager.listVerifications().find((item) => item.id === tracked.id)?.phase).toBe(
+        VerificationPhase.Ready,
+      );
+    });
+    expect(request.startVerification).not.toHaveBeenCalled();
+    expect(verify).not.toHaveBeenCalled();
+    expect(manager.listVerifications().find((item) => item.id === tracked.id)?.hasSas).toBe(false);
+  });
+
+  it("auto-starts self verification SAS when request becomes ready without a verifier", async () => {
+    const verify = vi.fn(async () => {});
+    const verifier = new MockVerifier(
+      {
+        sas: {
+          decimal: [1234, 5678, 9012],
+          emoji: [
+            ["gift", "Gift"],
+            ["rocket", "Rocket"],
+            ["butterfly", "Butterfly"],
+          ],
+        },
+        confirm: vi.fn(async () => {}),
+        mismatch: vi.fn(),
+        cancel: vi.fn(),
+      },
+      null,
+      verify,
+    );
+    const request = new MockVerificationRequest({
+      transactionId: "txn-auto-start-self-sas",
+      initiatedByMe: false,
+      isSelfVerification: true,
       verifier: undefined,
     });
     request.startVerification = vi.fn(async (_method: string) => {

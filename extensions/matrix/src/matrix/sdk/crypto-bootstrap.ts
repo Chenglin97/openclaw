@@ -274,6 +274,9 @@ export class MatrixCryptoBootstrapper<TRawEvent extends MatrixRawEvent> {
 
     // Track incoming requests; verification lifecycle decisions live in the
     // verification manager so acceptance/start/dedupe share one code path.
+    // Remote-user verifications are only auto-accepted. The human-operated
+    // client must explicitly choose "Verify by emoji" so we do not race a
+    // second SAS start from the bot side and end up with mismatched keys.
     crypto.on(CryptoEvent.VerificationRequestReceived, async (request) => {
       const verificationRequest = request as MatrixVerificationRequestLike;
       try {
