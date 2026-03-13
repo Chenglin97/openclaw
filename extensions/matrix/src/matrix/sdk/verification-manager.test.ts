@@ -256,7 +256,7 @@ describe("MatrixVerificationManager", () => {
     expect(manager.getVerificationSas(tracked.id).decimal).toEqual([1234, 5678, 9012]);
   });
 
-  it("auto-confirms inbound SAS after a short delay", async () => {
+  it("auto-confirms inbound SAS after a human-safe delay", async () => {
     vi.useFakeTimers();
     const confirm = vi.fn(async () => {});
     const verifier = new MockVerifier(
@@ -285,10 +285,10 @@ describe("MatrixVerificationManager", () => {
       const manager = new MatrixVerificationManager();
       manager.trackVerificationRequest(request);
 
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(29_000);
       expect(confirm).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(600);
+      await vi.advanceTimersByTimeAsync(1_100);
       expect(confirm).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();

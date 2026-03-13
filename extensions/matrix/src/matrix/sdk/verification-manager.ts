@@ -109,7 +109,7 @@ type MatrixVerificationSession = {
 
 const MAX_TRACKED_VERIFICATION_SESSIONS = 256;
 const TERMINAL_SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
-const SAS_AUTO_CONFIRM_DELAY_MS = 1500;
+const SAS_AUTO_CONFIRM_DELAY_MS = 30_000;
 
 export class MatrixVerificationManager {
   private readonly verificationSessions = new Map<string, MatrixVerificationSession>();
