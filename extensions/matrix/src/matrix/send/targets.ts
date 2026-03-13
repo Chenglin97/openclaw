@@ -1,8 +1,7 @@
-import { inspectMatrixDirectRooms } from "../direct-management.js";
+import { inspectMatrixDirectRooms, persistMatrixDirectRoomMapping } from "../direct-management.js";
 import { isStrictDirectRoom } from "../direct-room.js";
 import type { MatrixClient } from "../sdk.js";
 import { isMatrixQualifiedUserId, normalizeMatrixResolvableTarget } from "../target-ids.js";
-import { EventType, type MatrixDirectAccountData } from "./types.js";
 
 function normalizeTarget(raw: string): string {
   const trimmed = raw.trim();
@@ -45,35 +44,6 @@ function setDirectRoomCached(client: MatrixClient, key: string, value: string): 
   }
 }
 
-async function persistDirectRoom(
-  client: MatrixClient,
-  userId: string,
-  roomId: string,
-): Promise<void> {
-  let directContent: MatrixDirectAccountData | undefined;
-  try {
-    directContent = (await client.getAccountData(EventType.Direct)) as
-      | MatrixDirectAccountData
-      | undefined;
-  } catch {
-    // Ignore fetch errors and fall back to an empty map.
-  }
-  const existing = directContent && !Array.isArray(directContent) ? directContent : {};
-  const current = Array.isArray(existing[userId]) ? existing[userId] : [];
-  if (current[0] === roomId) {
-    return;
-  }
-  const next = [roomId, ...current.filter((id) => id !== roomId)];
-  try {
-    await client.setAccountData(EventType.Direct, {
-      ...existing,
-      [userId]: next,
-    });
-  } catch {
-    // Ignore persistence errors.
-  }
-}
-
 async function resolveDirectRoomId(client: MatrixClient, userId: string): Promise<string> {
   const trimmed = userId.trim();
   if (!isMatrixQualifiedUserId(trimmed)) {
@@ -100,7 +70,13 @@ async function resolveDirectRoomId(client: MatrixClient, userId: string): Promis
   if (inspection.activeRoomId) {
     setDirectRoomCached(client, trimmed, inspection.activeRoomId);
     if (inspection.mappedRoomIds[0] !== inspection.activeRoomId) {
-      await persistDirectRoom(client, trimmed, inspection.activeRoomId);
+      await persistMatrixDirectRoomMapping({
+        client,
+        remoteUserId: trimmed,
+        roomId: inspection.activeRoomId,
+      }).catch(() => {
+        // Ignore persistence errors when send resolution has already found a usable room.
+      });
     }
     return inspection.activeRoomId;
   }

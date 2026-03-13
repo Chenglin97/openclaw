@@ -114,6 +114,28 @@ function buildNextDirectContent(params: {
   };
 }
 
+export async function persistMatrixDirectRoomMapping(params: {
+  client: MatrixClient;
+  remoteUserId: string;
+  roomId: string;
+}): Promise<boolean> {
+  const remoteUserId = normalizeRemoteUserId(params.remoteUserId);
+  const directContent = await readMatrixDirectAccountData(params.client);
+  const current = normalizeMappedRoomIds(directContent, remoteUserId);
+  if (current[0] === params.roomId) {
+    return false;
+  }
+  await params.client.setAccountData(
+    EventType.Direct,
+    buildNextDirectContent({
+      directContent,
+      remoteUserId,
+      roomId: params.roomId,
+    }),
+  );
+  return true;
+}
+
 export async function inspectMatrixDirectRooms(params: {
   client: MatrixClient;
   remoteUserId: string;
@@ -198,7 +220,11 @@ export async function repairMatrixDirectRooms(params: {
     JSON.stringify(directContentAfter[remoteUserId] ?? []) !==
     JSON.stringify(directContentBefore[remoteUserId] ?? []);
   if (changed) {
-    await params.client.setAccountData(EventType.Direct, directContentAfter);
+    await persistMatrixDirectRoomMapping({
+      client: params.client,
+      remoteUserId,
+      roomId: activeRoomId,
+    });
   }
   return {
     ...inspected,
