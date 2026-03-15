@@ -13,7 +13,7 @@ import {
   buildExtensionHostMediaUnderstandingRegistry,
   normalizeExtensionHostMediaProviderId,
 } from "./media-runtime-registry.js";
-import { listExtensionHostTtsRuntimeProviders } from "./tts-runtime-registry.js";
+import { listExtensionHostTtsRuntimeBackends } from "./tts-runtime-backends.js";
 
 export const EXTENSION_HOST_RUNTIME_BACKEND_FAMILY = "capability.runtime-backend";
 
@@ -203,7 +203,7 @@ export function resolveExtensionHostMediaRuntimeDefaultModel(params: {
 }
 
 export function listExtensionHostTtsRuntimeBackendCatalogEntries(): readonly ExtensionHostRuntimeBackendCatalogEntry[] {
-  return listExtensionHostTtsRuntimeProviders().map((provider, defaultRank) => ({
+  return listExtensionHostTtsRuntimeBackends().map((provider, defaultRank) => ({
     id: buildRuntimeBackendCatalogId("tts", provider.id),
     family: EXTENSION_HOST_RUNTIME_BACKEND_FAMILY,
     subsystemId: "tts",

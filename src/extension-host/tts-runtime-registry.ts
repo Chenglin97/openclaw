@@ -1,58 +1,24 @@
 import type { TtsProvider } from "../config/types.tts.js";
 import type { ResolvedTtsConfig } from "./tts-config.js";
+import {
+  EXTENSION_HOST_TTS_RUNTIME_BACKEND_IDS,
+  getExtensionHostTtsRuntimeBackend,
+  listExtensionHostTtsRuntimeBackends,
+  type ExtensionHostTtsRuntimeBackend,
+} from "./tts-runtime-backends.js";
 
-export type ExtensionHostTtsRuntimeProvider = {
-  id: TtsProvider;
-  supportsTelephony: boolean;
-  resolveApiKey: (config: ResolvedTtsConfig) => string | undefined;
-  isConfigured: (config: ResolvedTtsConfig) => boolean;
-};
+export type ExtensionHostTtsRuntimeProvider = ExtensionHostTtsRuntimeBackend;
 
-const EXTENSION_HOST_TTS_RUNTIME_PROVIDERS: readonly ExtensionHostTtsRuntimeProvider[] = [
-  {
-    id: "openai",
-    supportsTelephony: true,
-    resolveApiKey(config) {
-      return config.openai.apiKey || process.env.OPENAI_API_KEY;
-    },
-    isConfigured(config) {
-      return Boolean(this.resolveApiKey(config));
-    },
-  },
-  {
-    id: "elevenlabs",
-    supportsTelephony: true,
-    resolveApiKey(config) {
-      return config.elevenlabs.apiKey || process.env.ELEVENLABS_API_KEY || process.env.XI_API_KEY;
-    },
-    isConfigured(config) {
-      return Boolean(this.resolveApiKey(config));
-    },
-  },
-  {
-    id: "edge",
-    supportsTelephony: false,
-    resolveApiKey() {
-      return undefined;
-    },
-    isConfigured(config) {
-      return config.edge.enabled;
-    },
-  },
-] as const;
-
-export const EXTENSION_HOST_TTS_PROVIDER_IDS = EXTENSION_HOST_TTS_RUNTIME_PROVIDERS.map(
-  (provider) => provider.id,
-) as readonly TtsProvider[];
+export const EXTENSION_HOST_TTS_PROVIDER_IDS = EXTENSION_HOST_TTS_RUNTIME_BACKEND_IDS;
 
 export function listExtensionHostTtsRuntimeProviders(): readonly ExtensionHostTtsRuntimeProvider[] {
-  return EXTENSION_HOST_TTS_RUNTIME_PROVIDERS;
+  return listExtensionHostTtsRuntimeBackends();
 }
 
 export function getExtensionHostTtsRuntimeProvider(
   id: TtsProvider,
 ): ExtensionHostTtsRuntimeProvider | undefined {
-  return EXTENSION_HOST_TTS_RUNTIME_PROVIDERS.find((provider) => provider.id === id);
+  return getExtensionHostTtsRuntimeBackend(id);
 }
 
 export function resolveExtensionHostTtsApiKey(

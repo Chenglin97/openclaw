@@ -36,8 +36,8 @@ vi.mock("./media-runtime-registry.js", () => ({
   ),
 }));
 
-vi.mock("./tts-runtime-registry.js", () => ({
-  listExtensionHostTtsRuntimeProviders: vi.fn(() => [
+vi.mock("./tts-runtime-backends.js", () => ({
+  listExtensionHostTtsRuntimeBackends: vi.fn(() => [
     { id: "openai", supportsTelephony: true },
     { id: "elevenlabs", supportsTelephony: true },
     { id: "edge", supportsTelephony: false },
