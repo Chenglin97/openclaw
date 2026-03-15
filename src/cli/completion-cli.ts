@@ -69,7 +69,7 @@ export async function completionCacheExists(
   return pathExists(cachePath);
 }
 
-function getCompletionScript(shell: CompletionShell, program: Command): string {
+export function getCompletionScript(shell: CompletionShell, program: Command): string {
   if (shell === "zsh") {
     return generateZshCompletion(program);
   }
@@ -443,16 +443,18 @@ function generateZshSubcmdList(cmd: Command): string {
 
 function generateZshSubcommands(program: Command, prefix: string): string {
   const segments: string[] = [];
-  for (const cmd of program.commands) {
-    const cmdName = cmd.name();
-    const funcName = `_${prefix}_${cmdName.replace(/-/g, "_")}`;
 
-    // Recurse first
-    segments.push(generateZshSubcommands(cmd, `${prefix}_${cmdName.replace(/-/g, "_")}`));
+  const visit = (current: Command, currentPrefix: string) => {
+    for (const cmd of current.commands) {
+      const cmdName = cmd.name();
+      const nextPrefix = `${currentPrefix}_${cmdName.replace(/-/g, "_")}`;
+      const funcName = `_${nextPrefix}`;
 
-    const subCommands = cmd.commands;
-    if (subCommands.length > 0) {
-      segments.push(`
+      visit(cmd, nextPrefix);
+
+      const subCommands = cmd.commands;
+      if (subCommands.length > 0) {
+        segments.push(`
 ${funcName}() {
   local -a commands
   local -a options
@@ -471,7 +473,9 @@ ${funcName}() {
   esac
 }
 `);
-    } else {
+        continue;
+      }
+
       segments.push(`
 ${funcName}() {
   _arguments -C \\
@@ -479,7 +483,9 @@ ${funcName}() {
 }
 `);
     }
-  }
+  };
+
+  visit(program, prefix);
   return segments.join("");
 }
 
@@ -528,19 +534,17 @@ function generateBashSubcommand(cmd: Command): string {
 
 function generatePowerShellCompletion(program: Command): string {
   const rootCmd = program.name();
+  const segments: string[] = [];
 
-  const visit = (cmd: Command, parents: string[]): string[] => {
-    const cmdName = cmd.name();
-    const fullPath = [...parents, cmdName].join(" ");
-
-    const segments: string[] = [];
+  const visit = (cmd: Command, pathSegments: string[]) => {
+    const fullPath = pathSegments.join(" ");
 
     // Command completion for this level
     const subCommands = cmd.commands.map((c) => c.name());
     const options = cmd.options.map((o) => o.flags.split(/[ ,|]+/)[0]); // Take first flag
     const allCompletions = [...subCommands, ...options].map((s) => `'${s}'`).join(",");
 
-    if (allCompletions.length > 0) {
+    if (fullPath.length > 0 && allCompletions.length > 0) {
       segments.push(`
             if ($commandPath -eq '${fullPath}') {
                 $completions = @(${allCompletions})
@@ -551,15 +555,13 @@ function generatePowerShellCompletion(program: Command): string {
 `);
     }
 
-    // Recurse
     for (const sub of cmd.commands) {
-      segments.push(...visit(sub, [...parents, cmdName]));
+      visit(sub, [...pathSegments, sub.name()]);
     }
-
-    return segments;
   };
 
-  const rootBody = visit(program, []).join("");
+  visit(program, []);
+  const rootBody = segments.join("");
 
   return `
 Register-ArgumentCompleter -Native -CommandName ${rootCmd} -ScriptBlock {
