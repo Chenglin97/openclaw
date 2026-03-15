@@ -46,6 +46,7 @@ What has been implemented:
 - loader post-import planning and `register(...)` execution now route through `src/extension-host/loader-register.ts`
 - loader per-candidate orchestration now routes through `src/extension-host/loader-flow.ts`
 - loader top-level load orchestration now routes through `src/extension-host/loader-orchestrator.ts`
+- loader mutable activation state now routes through `src/extension-host/loader-session.ts`
 - loader record-state transitions now route through `src/extension-host/loader-state.ts`, which now enforces an explicit loader lifecycle state machine while preserving compatibility `PluginRecord.status` values
 - loader final cache, warning, and activation finalization now routes through `src/extension-host/loader-finalize.ts`, including readiness promotion for successfully registered plugins
 
@@ -71,10 +72,11 @@ How it has been implemented:
 - by moving cache writes, provenance warnings, final memory-slot warnings, and activation into a host-owned loader finalizer before introducing an explicit lifecycle state machine
 - by adding explicit compatibility `lifecycleState` mapping on loader-owned plugin records before enforcing the loader lifecycle state machine
 - by promoting successfully registered plugins to `ready` during host-owned finalization while leaving broader activation-state semantics for later phases
+- by moving mutable activation state such as seen-id tracking, memory-slot selection, and finalization inputs into a host-owned loader session before broader activation-state semantics move
 
 What is still pending from this spec:
 
-- broader extension-host lifecycle ownership beyond the loader state machine
+- broader extension-host lifecycle ownership beyond the loader state machine and session-owned activation state
 - activation pipeline ownership
 - host-owned registries for setup, CLI, routes, services, slots, and backends
 - permission-mode enforcement

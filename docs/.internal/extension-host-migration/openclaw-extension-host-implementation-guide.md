@@ -69,6 +69,7 @@ What has been implemented so far:
 - loader post-import planning and `register(...)` execution now route through `src/extension-host/loader-register.ts`
 - loader per-candidate orchestration now routes through `src/extension-host/loader-flow.ts`
 - loader top-level load orchestration now routes through `src/extension-host/loader-orchestrator.ts`
+- loader mutable activation state now routes through `src/extension-host/loader-session.ts`
 - loader record-state transitions now route through `src/extension-host/loader-state.ts`, which now enforces an explicit loader lifecycle state machine while preserving compatibility `PluginRecord.status` values
 - loader final cache, warning, and activation finalization now routes through `src/extension-host/loader-finalize.ts`
 - runtime registration normalization has started in `src/extension-host/runtime-registrations.ts` for channel, provider, HTTP-route, gateway-method, tool, CLI, service, command, context-engine, and hook registrations
@@ -104,6 +105,7 @@ How it has been done:
 - by adding explicit compatibility `lifecycleState` mapping on loader-owned plugin records before enforcing the loader lifecycle state machine
 - by turning that compatibility `lifecycleState` field into an enforced loader lifecycle state machine with readiness promotion during finalization
 - by moving the remaining top-level loader orchestration into a host-owned module so `src/plugins/loader.ts` becomes a compatibility facade instead of the real owner
+- by moving mutable activation state such as seen-id tracking, memory-slot selection, and finalization inputs into a host-owned loader session instead of leaving them in top-level loader variables
 - by moving central readers first, so later lifecycle and compatibility work can land on one boundary instead of many ad hoc call sites
 - by adding focused tests for each extracted seam before widening the boundary further
 
@@ -120,13 +122,14 @@ Committed implementation slices so far:
 - `6590e19095` `Plugins: extract loader cache control`
 - `c8d82a8f19` `Plugins: extract loader orchestration`
 - `d32f65eb5e` `Plugins: add loader lifecycle state machine`
+- `da9aad0c0f` `Plugins: add loader activation session`
 - `89414ed857` `Docs: track extension host migration internally`
 - `d8af1eceaf` `Docs: refresh extension host migration status`
 
 What is still missing for these phases:
 
 - keeping the cutover inventory current as more surfaces move
-- broader lifecycle ownership beyond the loader state machine, remaining explicit activation-state ownership, policy gate, and broad host-owned registries described for Phase 2
+- broader lifecycle ownership beyond the loader state machine and session-owned activation state, remaining explicit policy gate ownership, and broad host-owned registries described for Phase 2
 - minimal SDK compatibility work beyond preserving current behavior indirectly through existing loading
 - any pilot migration, event pipeline, canonical catalog, or arbitration implementation
 
@@ -316,7 +319,7 @@ Current implementation status:
 - the host owns the active registry state
 - the host exposes a resolved-extension registry view for static consumers
 - plugin skills, plugin auto-enable, and config validation indexing now consume host-owned resolved-extension data
-- activation, loader cache control, loader policy, loader candidate planning, loader import flow, loader runtime decisions, loader post-import register flow, loader candidate orchestration, loader top-level load orchestration, loader record-state helpers, and loader finalization now route through `src/extension-host/*`
+- activation, loader cache control, loader policy, loader candidate planning, loader import flow, loader runtime decisions, loader post-import register flow, loader candidate orchestration, loader top-level load orchestration, loader session state, loader record-state helpers, and loader finalization now route through `src/extension-host/*`
 - broader lifecycle state ownership beyond the loader state machine, activation states, policy evaluation, and broad host-owned registries are still not implemented
 
 ### Phase 3: Build compatibility bridges
