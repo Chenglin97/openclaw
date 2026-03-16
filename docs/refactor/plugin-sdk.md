@@ -213,6 +213,27 @@ Notes:
 
 Related docs: [Plugins](/tools/plugin), [Channels](/channels/index), [Configuration](/gateway/configuration).
 
+## Boundary ratchet
+
+Bundled plugins should generally target the same public surfaces as external
+plugins: `openclaw/plugin-sdk/*`, `openclaw/extension-api`, and injected
+runtime capabilities. This keeps bundled plugins moving toward the same stable
+boundary the npm-installed plugin ecosystem depends on.
+
+The current repo is still transitional. `openclaw/plugin-sdk/compat`,
+`plugin-sdk-internal`, and direct `src/**` imports still exist in some bundled
+plugins. The default expectation is:
+
+- prefer public SDK/runtime surfaces first
+- use `openclaw/plugin-sdk/compat` only as a temporary bundled-only escape hatch
+- treat `plugin-sdk-internal` and direct core imports as non-default privileged
+  access
+
+Search providers are a good example of why this matters: moving code from core
+into `extensions/` is not enough if provider-specific ownership still leaks back
+into core. Boundary checks should ratchet bundled plugins toward public surfaces
+without requiring an all-at-once migration.
+
 ## Implemented channel-owned seams
 
 Recent refactor work widened the channel plugin contract so core can stop owning
