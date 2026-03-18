@@ -110,6 +110,13 @@ export const handleCompactCommand: CommandHandler = async (params) => {
     ownerNumbers: params.command.ownerList.length > 0 ? params.command.ownerList : undefined,
   });
 
+  // A "cancelled" result means the safeguard deliberately declined to run
+  // (e.g. context is below the compaction threshold). This is not an error —
+  // treat it the same as an intentional skip so the user isn't alarmed.
+  const isCancelledByDesign =
+    !result.ok &&
+    (result.reason?.toLowerCase().includes("cancelled") ||
+      result.reason?.toLowerCase().includes("canceled"));
   const compactLabel = result.ok
     ? result.compacted
       ? result.result?.tokensBefore != null && result.result?.tokensAfter != null
@@ -118,7 +125,9 @@ export const handleCompactCommand: CommandHandler = async (params) => {
           ? `Compacted (${formatTokenCount(result.result.tokensBefore)} before)`
           : "Compacted"
       : "Compaction skipped"
-    : "Compaction failed";
+    : isCancelledByDesign
+      ? "Compaction skipped"
+      : "Compaction failed";
   if (result.ok && result.compacted) {
     await incrementCompactionCount({
       sessionEntry: params.sessionEntry,
@@ -136,7 +145,15 @@ export const handleCompactCommand: CommandHandler = async (params) => {
     typeof totalTokens === "number" && totalTokens > 0 ? totalTokens : null,
     params.contextTokens ?? params.sessionEntry.contextTokens ?? null,
   );
-  const reason = result.reason?.trim();
+  const rawReason = result.reason?.trim();
+  // "Compaction cancelled" tells the user *what* happened but not *why*.
+  // When the safeguard deliberately cancelled, replace the generic SDK string
+  // with an explanation so users understand nothing is broken.
+  const normalizedReason = rawReason?.toLowerCase();
+  const reason =
+    normalizedReason === "compaction cancelled" || normalizedReason === "compaction canceled"
+      ? "context usage is below the compaction threshold — nothing to summarize yet"
+      : rawReason;
   const line = reason
     ? `${compactLabel}: ${reason} • ${contextSummary}`
     : `${compactLabel} • ${contextSummary}`;

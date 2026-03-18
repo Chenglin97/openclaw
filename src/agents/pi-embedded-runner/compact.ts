@@ -263,6 +263,9 @@ function classifyCompactionReason(reason?: string): string {
   if (text.includes("guard")) {
     return "guard_blocked";
   }
+  if (text.includes("cancelled") || text.includes("canceled")) {
+    return "safeguard_cancelled";
+  }
   if (text.includes("summary")) {
     return "summary_failed";
   }
